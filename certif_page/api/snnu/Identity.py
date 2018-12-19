@@ -1,0 +1,5 @@
+
+BENKE=1
+MASTER=2
+TEACHER=0
+ 

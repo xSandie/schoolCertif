@@ -6,5 +6,8 @@ class SnnuCookie(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     userId=Column(String(100),nullable=False)
     JSESSIONID=Column(String(100))
+    csrf__EVENTVALIDATION=Column(String(500))
+    csrf__VIEWSTATEGENERATOR=Column(String(100))
+    csrf__VIEWSTATE=Column(String(300))
     imgUrl=Column(String(150))
 

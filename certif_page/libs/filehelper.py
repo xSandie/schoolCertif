@@ -2,8 +2,8 @@
 from app import OS_PATH
 
 img_local_prefix="/static/"
-img_net_prefix='http://api.inschool.tech'
-
+# img_net_prefix='http://api.inschool.tech'
+img_net_prefix='http://127.0.0.1:4000'
 
 img_local_url=OS_PATH+img_local_prefix #~/static/
 #本地图片地址

@@ -1,5 +1,6 @@
 # -*- coding:utf-8 -*- 
 from flask import Flask
+from flask_migrate import Migrate
 
 from certif_page.models.base import db
 
@@ -16,6 +17,8 @@ def create_app():
     #上面进行基本配置
     register_blueprints(app)
     db.init_app(app)
+
+    migrate=Migrate(app,db)
     with app.app_context():
         db.create_all()
 
