@@ -17,7 +17,7 @@
 * */certif_page/api/学校名缩写/IDENTITY.py* 存储前端传来的身份代码与其代表的身份信息的映射。
 
 2. 添加
-* 在*/certif_page/config/* 下添加[flask配置文件](http://www.pythondoc.com/flask/config.html "配置处理")
+* 在 */certif_page/config/* 下添加[flask配置文件](http://www.pythondoc.com/flask/config.html "配置处理")
 
 3. "*/static + /学校英文缩写/*" 存储验证码图片的本地路径，可通过公网访问。
 4. "*/static + /学校英文缩写/portrait/*" 存储认证后获得的用户头像，**不可**通过公网访问。
