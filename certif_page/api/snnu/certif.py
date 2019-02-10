@@ -90,6 +90,8 @@ def benke_certif(req_arg):
                 db_data.userName = name_and_schoolNum[1]  # 是定义的colume名而不是数据库列名
                 db_data.schoolNum = name_and_schoolNum[0]
                 db_data.sex = sex
+                db_data.rawHtml = sex_html.text #存储网页源码，方便以后分析
+
             result_dict = {
                 'user_id': req_arg['user_id'],
                 'status': 1,
@@ -269,8 +271,10 @@ def teacher_get():
 @snnu.route('/certif',methods=['POST'])
 def certif():
 
-    req_arg = request.form
+    req_args = request.form
 
+    req_arg = req_args.to_dict()
+    req_arg['user_id'] = str(req_arg['user_id'])#防止传int
     if int(req_arg.get('identity',1)) == BENKE:
         certif_res = benke_certif(req_arg)
     elif int(req_arg.get('identity'))==MASTER:
@@ -282,7 +286,11 @@ def certif():
 
 @snnu.route('/get',methods=['POST'])
 def get():
-    req_arg=request.form
+    req_args = request.form
+
+    req_arg = req_args.to_dict()
+    req_arg['user_id'] = str(req_arg['user_id'])  # 防止传int
+
     if int(req_arg.get('identity',1)) == BENKE:
         result_dict=benke_get(req_arg)
     elif int(req_arg.get('identity'))==MASTER:

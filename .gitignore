@@ -3,3 +3,5 @@ certif_page/config/
 __pycache__/
 .vs/
 .vscode/
+migrations/
+*.jpg

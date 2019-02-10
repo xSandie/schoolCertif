@@ -1,4 +1,5 @@
 # -*- coding:utf-8 -*- 
+import click
 from flask import Flask
 from flask_migrate import Migrate
 
@@ -22,4 +23,21 @@ def create_app():
     with app.app_context():
         db.create_all()
 
+    register_shell_context(app)
+    register_commands(app)
+
     return app #一定要记得返回创建的核心对象app
+
+def register_shell_context(app):
+    @app.shell_context_processor
+    def make_shell_context():
+        return dict(app=app,db=db)
+
+def register_commands(app):
+    @app.cli.command('initdb')
+    def initdb():
+        click.echo("Initializing the database")
+        with app.app_context():
+            db.drop_all()
+            db.create_all()
+        click.echo("Done")
