@@ -6,7 +6,7 @@ from flask import Blueprint, jsonify, request, abort
 from lxml import etree
 from sqlalchemy import desc
 
-from certif_page.api.snnu.Identity import BENKE, MASTER
+from certif_page.api.snnu.IDENTITY import BENKE, MASTER
 from certif_page.api.snnu.URL import benke_get_url, benke_get_pic_url, benke_certif_url, benke_name_schoolNum_url, \
     benke_sex_url, master_main_url, master_code_url, master_certif_url, master_sex_name_url
 from certif_page.libs.filehelper import img_net_prefix
