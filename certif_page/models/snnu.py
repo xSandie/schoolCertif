@@ -11,5 +11,6 @@ class SnnuCookie(Base):
     csrf__VIEWSTATEGENERATOR=Column(String(100))
     csrf__VIEWSTATE=Column(String(300))
     imgUrl=Column(String(150))
-    rawHtml=db.Column(db.Text)
+    infoRawHtml=db.Column(db.Text)
+    courseRawHtml=db.Column(db.Text)
 

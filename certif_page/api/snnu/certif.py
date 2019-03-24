@@ -8,7 +8,7 @@ from sqlalchemy import desc
 
 from certif_page.api.snnu.IDENTITY import BENKE, MASTER
 from certif_page.api.snnu.URL import benke_get_url, benke_get_pic_url, benke_certif_url, benke_name_schoolNum_url, \
-    benke_sex_url, master_main_url, master_code_url, master_certif_url, master_sex_name_url
+    benke_sex_url, master_main_url, master_code_url, master_certif_url, master_sex_name_url, courses_table
 from certif_page.libs.filehelper import img_net_prefix
 from certif_page.models.base import db
 from certif_page.models.snnu import SnnuCookie
@@ -67,6 +67,7 @@ def benke_certif(req_arg):
 
     name_and_schoolNum_html = s.get(benke_name_schoolNum_url, cookies=my_cookies)
     sex_html = s.get(benke_sex_url, cookies=my_cookies)
+    course_html = s.get(courses_table, cookies=my_cookies)
 
     name_and_schoolNum = re.findall(rename_schoolNum, name_and_schoolNum_html.text)  # 第一个是学号，第二个是姓名
     sex = re.findall(resex, sex_html.text)
@@ -90,7 +91,8 @@ def benke_certif(req_arg):
                 db_data.userName = name_and_schoolNum[1]  # 是定义的colume名而不是数据库列名
                 db_data.schoolNum = name_and_schoolNum[0]
                 db_data.sex = sex
-                db_data.rawHtml = sex_html.text #存储网页源码，方便以后分析
+                db_data.infoRawHtml = sex_html.text #存储网页源码，方便以后分析
+                db_data.courseRawHtml = course_html.text
 
             result_dict = {
                 'user_id': req_arg['user_id'],
