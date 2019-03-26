@@ -4,4 +4,6 @@ __pycache__/
 .vs/
 .vscode/
 migrations/
+gunicorn.conf
 static/
+*.jpg

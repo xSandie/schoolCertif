@@ -2,14 +2,13 @@
 import os
 import re
 import requests
-from flask import Blueprint, jsonify, request, abort
+from flask import Blueprint, jsonify, request, abort, current_app
 from lxml import etree
 from sqlalchemy import desc
 
-from certif_page.api.snnu.Identity import BENKE, MASTER
+from certif_page.api.snnu.IDENTITY import BENKE, MASTER
 from certif_page.api.snnu.URL import benke_get_url, benke_get_pic_url, benke_certif_url, benke_name_schoolNum_url, \
-    benke_sex_url, master_main_url, master_code_url, master_certif_url, master_sex_name_url
-from certif_page.libs.filehelper import img_net_prefix
+    benke_sex_url, master_main_url, master_code_url, master_certif_url, master_sex_name_url, courses_table
 from certif_page.models.base import db
 from certif_page.models.snnu import SnnuCookie
 from app import OS_PATH
@@ -46,26 +45,39 @@ def rename_code(pic_name,user_id):
 
 #本科生认证
 def benke_certif(req_arg):
-    db_data = SnnuCookie.query.filter_by(userId=req_arg['userId']).order_by(desc("id")).first()  # 降序排列取最后一个
+    db_data = SnnuCookie.query.filter_by(userId=str(req_arg['user_id'])).order_by(desc("id")).first()  # 降序排列取最后一个
     my_cookie = db_data.JSESSIONID
     my_cookies = {
         'JSESSIONID': my_cookie
     }
 
     s = requests.session()
-    info = {'zjh': req_arg['zjh'], 'mm': req_arg['mm'], 'v_yzm': req_arg['yzm']}
+    info = {'zjh': req_arg['account'], 'mm': req_arg['password'], 'v_yzm': req_arg['verification_code']}
 
     rename_schoolNum = re.compile("当前用户:(\d*)\((\S*)\)")
     resex = re.compile('性别:&nbsp;\s*</td>\s*<td align="left" width="275">\s*(\S*)\s*</td>')
+    re_specialty = re.compile("专业:&nbsp;\s*</td>\s*<td.*?>\s*(\S*)\s*?</td>")
+    re_class = re.compile("班级:&nbsp;\s*</td>\s*<td.*?>\s*(\S*)\s*?</td>")
+    re_grade = re.compile("年级:&nbsp;\s*</td>\s*<td.*?>\s*(\S*)\s*?</td>")
+
 
     html = s.post(benke_certif_url, data=info, cookies=my_cookies)
     #认证完成，以下开始获取相关信息
 
     name_and_schoolNum_html = s.get(benke_name_schoolNum_url, cookies=my_cookies)
     sex_html = s.get(benke_sex_url, cookies=my_cookies)
+    course_html = s.get(courses_table, cookies=my_cookies)
 
     name_and_schoolNum = re.findall(rename_schoolNum, name_and_schoolNum_html.text)  # 第一个是学号，第二个是姓名
     sex = re.findall(resex, sex_html.text)
+    major = re.findall(re_specialty, sex_html.text)[0]
+    clss = re.findall(re_class, sex_html.text)[0]
+    grade = re.findall(re_grade, sex_html.text)[0]
+
+    #todo 保存用户照片
+    portrait_url = benke_get_url+'xjInfoAction.do?oper=img'
+    save_portrait_uri = OS_PATH+"/static/snnu/portrait/" + str(req_arg['user_id']) + '.jpg'
+    get_img(save_portrait_uri,my_cookies,portrait_url)
 
     # 提取具体数据
     try:
@@ -74,21 +86,26 @@ def benke_certif(req_arg):
 
         if sex and name_and_schoolNum:
             #表示都获取成功了
-
             with db.auto_commit():
                 db_data.userName = name_and_schoolNum[1]  # 是定义的colume名而不是数据库列名
                 db_data.schoolNum = name_and_schoolNum[0]
                 db_data.sex = sex
+                db_data.infoRawHtml = sex_html.text #存储网页源码，方便以后分析
+                db_data.courseRawHtml = course_html.text
+
             result_dict = {
-                'userId': req_arg['userId'],
+                'user_id': req_arg['user_id'],
                 'status': 1,
                 'name': name_and_schoolNum[1],
-                'schoolNum': name_and_schoolNum[0],
+                'school_numb': name_and_schoolNum[0],
                 'sex': sex,
-                'identity':1
+                'identity':1,
+                'major':major,
+                'class':clss,
+                'grade':grade
             }
             # 重命名用户认证用的二维码
-            rename_code(req_arg['yzm'], req_arg['userId'])
+            rename_code(req_arg['verification_code'], req_arg['user_id'])
 
         else:
             result_dict={
@@ -99,31 +116,7 @@ def benke_certif(req_arg):
         result_dict['status']=0
         # 认证失败逻辑需要再写一下,再次去获取验证码
 
-        # s = requests.session()
-        # html = s.get(benke_get_url)
-        # my_cookie = html.cookies['JSESSIONID']
-        # cookie_dict = dict(html.cookies)
-        #
-        # img_local_url = "/static/snnu/" + str(req_arg['userId']) + '.jpg'
-        # img_name = OS_PATH + img_local_url
-        #
-        # if get_img(img_name, cookie_dict,benke_get_pic_url):
-        #     with db.auto_commit():
-        #         snnu_cookie = SnnuCookie()
-        #         snnu_cookie.userId = str(req_arg['userId'])
-        #         snnu_cookie.JSESSIONID = my_cookie
-        #         snnu_cookie.imgUrl = img_local_url
-        #         db.session.add(snnu_cookie)
-        #
-        #     result_dict = {
-        #         'userId': req_arg['userId'],
-        #         'imgUrl': img_net_prefix + img_local_url,
-        #         'status': 0
-        #     }
-        # else:
-        #     result_dict={
-        #         'error':'fail to save img'
-        #     }
+
 
     return result_dict
 
@@ -134,23 +127,23 @@ def benke_get(req_arg):
     my_cookie = html.cookies['JSESSIONID']
     cookie_dict = dict(html.cookies)
 
-    img_local_url = "/static/snnu/" + str(req_arg['userId']) + '.jpg'
+    img_local_url = "/static/snnu/" + str(req_arg['user_id']) + '.jpg'
     img_name = OS_PATH + img_local_url
 
     if get_img(img_name, cookie_dict,benke_get_pic_url):
         with db.auto_commit():
             snnu_cookie=SnnuCookie()
-            snnu_cookie.userId=str(req_arg['userId'])
+            snnu_cookie.userId=str(req_arg['user_id'])
             snnu_cookie.JSESSIONID=my_cookie
             snnu_cookie.imgUrl=img_local_url
             db.session.add(snnu_cookie)
         result_dict = {
-            'userId': req_arg['userId'],
-            'imgUrl': img_net_prefix + img_local_url
+            'user_id': req_arg['user_id'],
+            'img_url': current_app.config['IMG_NET_PREFIX'] + img_local_url
         }
     else:
         result_dict = {
-            'userId': req_arg['userId'],
+            'user_id': req_arg['user_id'],
             'error': 'file_save_error'
         }
 
@@ -158,7 +151,7 @@ def benke_get(req_arg):
 
 #研究生相关
 def master_certif(req_arg):
-    db_data = SnnuCookie.query.filter_by(userId=req_arg['userId']).order_by(desc("id")).first()  # 降序排列取最后一个
+    db_data = SnnuCookie.query.filter_by(userId=req_arg['user_id']).order_by(desc("id")).first()  # 降序排列取最后一个
     my_cookie = db_data.JSESSIONID
     my_cookies = {
         'ASP.NET_SessionId': my_cookie
@@ -175,9 +168,9 @@ def master_certif(req_arg):
     }
 
     info = {
-        'ctl00$contentParent$UserName': req_arg['zjh'],
-        'ctl00$contentParent$PassWord': req_arg['mm'],
-        'ctl00$contentParent$ValidateCode': req_arg['yzm'],
+        'ctl00$contentParent$UserName': req_arg['account'],
+        'ctl00$contentParent$PassWord': req_arg['password'],
+        'ctl00$contentParent$ValidateCode': req_arg['verification_code'],
         '__EVENTVALIDATION': db_data.csrf__EVENTVALIDATION,
         '__VIEWSTATEGENERATOR': db_data.csrf__VIEWSTATEGENERATOR,
         '__VIEWSTATE': db_data.csrf__VIEWSTATE,
@@ -199,18 +192,18 @@ def master_certif(req_arg):
 
         with db.auto_commit():
             db_data.userName =name_fin  # 是定义的colume名而不是数据库列名
-            db_data.schoolNum = req_arg['zjh']
+            db_data.schoolNum = req_arg['account']
             db_data.sex = sex_fin
         result_dict = {
-            'userId': req_arg['userId'],
+            'user_id': req_arg['user_id'],
             'status': 1,
             'name': name_fin,
-            'schoolNum': req_arg['zjh'],
+            'school_numb': req_arg['account'],
             'sex': sex_fin,
             'identity': 2
         }
         # 重命名用户认证用的二维码
-        rename_code(req_arg['yzm'], req_arg['userId'])
+        rename_code(req_arg['verification_code'], req_arg['user_id'])
 
     except Exception as e:
         #获取姓名出错逻辑
@@ -226,7 +219,7 @@ def master_get(req_arg):
     my_cookie = html.cookies.get('ASP.NET_SessionId')
     cookie_dict = dict(html.cookies)
 
-    img_local_url = "/static/snnu/" + str(req_arg['userId']) + '.jpg'
+    img_local_url = "/static/snnu/" + str(req_arg['user_id']) + '.jpg'
     img_name = OS_PATH + img_local_url
 
     if get_img(img_name, cookie_dict,master_code_url):
@@ -246,7 +239,7 @@ def master_get(req_arg):
 
         with db.auto_commit():
             snnu_cookie=SnnuCookie()
-            snnu_cookie.userId=str(req_arg['userId'])
+            snnu_cookie.userId=str(req_arg['user_id'])
             snnu_cookie.JSESSIONID=my_cookie
             snnu_cookie.imgUrl=img_local_url
             snnu_cookie.csrf__VIEWSTATE=csrf__VIEWSTATE
@@ -254,21 +247,20 @@ def master_get(req_arg):
             snnu_cookie.csrf__EVENTVALIDATION=csrf__EVENTVALIDATION
             db.session.add(snnu_cookie)
         result_dict = {
-            'userId': req_arg['userId'],
-            'imgUrl': img_net_prefix + img_local_url
+            'user_id': req_arg['user_id'],
+            'img_url': current_app.config['IMG_NET_PREFIX'] + img_local_url
         }
     else:
         result_dict = {
-            'userId': req_arg['userId'],
+            'user_id': req_arg['user_id'],
             'error': 'file_save_error'
         }
-
     return result_dict
 
 
 
 
-#教师相关
+#todo 教师相关
 def teacher_certif():
     pass
 
@@ -280,8 +272,10 @@ def teacher_get():
 @snnu.route('/certif',methods=['POST'])
 def certif():
 
-    req_arg = request.form
+    req_args = request.form
 
+    req_arg = req_args.to_dict()
+    req_arg['user_id'] = str(req_arg['user_id'])#防止传int
     if int(req_arg.get('identity',1)) == BENKE:
         certif_res = benke_certif(req_arg)
     elif int(req_arg.get('identity'))==MASTER:
@@ -293,7 +287,11 @@ def certif():
 
 @snnu.route('/get',methods=['POST'])
 def get():
-    req_arg=request.form
+    req_args = request.form
+
+    req_arg = req_args.to_dict()
+    req_arg['user_id'] = str(req_arg['user_id'])  # 防止传int
+
     if int(req_arg.get('identity',1)) == BENKE:
         result_dict=benke_get(req_arg)
     elif int(req_arg.get('identity'))==MASTER:
