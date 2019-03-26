@@ -7,7 +7,6 @@ benke_get_pic_url='http://219.244.71.113/validateCodeAction.do?'
 benke_name_schoolNum_url='http://219.244.71.113/menu/top.jsp'
 #获取性别url
 benke_sex_url='http://219.244.71.113/xjInfoAction.do?oper=xjxx'
-courses_table='http://219.244.71.113/xkAction.do?actionType=6'
 
 #研究生网址
 master_main_url='http://yjssys.snnu.edu.cn/gstudent/ReLogin.aspx?ReturnUrl=/Gstudent/loging.aspx'

@@ -1,7 +1,6 @@
 # -*- coding:utf-8 -*- 
 from sqlalchemy import Column, Integer, String#数据类型从原来的sqlachemy导入
-from certif_page.models.base import Base, db
-
+from certif_page.models.base import Base
 
 class SnnuCookie(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -11,6 +10,4 @@ class SnnuCookie(Base):
     csrf__VIEWSTATEGENERATOR=Column(String(100))
     csrf__VIEWSTATE=Column(String(300))
     imgUrl=Column(String(150))
-    infoRawHtml=db.Column(db.Text)
-    courseRawHtml=db.Column(db.Text)
 
