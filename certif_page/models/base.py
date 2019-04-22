@@ -22,10 +22,6 @@ db = SQLAlchemy()  # 实例化,用来映射到数据库中,要和核心对象app
 class Base(db.Model):#这样使子模型直接继承此base就行
     __abstract__=True#默认会直接创建这个表，但是我们不希望创建
     create_time=Column('create_time',Integer)
-    userName = Column('name', String(20))
-    sex = Column('sex', String(10))
-    schoolNum = Column('schoolNum', String(20))
-
     def __init__(self):
         self.create_time=int(datetime.now().timestamp())#模型生成的时间
 

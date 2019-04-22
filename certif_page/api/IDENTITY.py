@@ -1,5 +1,5 @@
 
 BENKE=1
-MASTER=2
+MASTER=2 #硕士生
 TEACHER=0
  
