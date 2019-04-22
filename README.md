@@ -24,9 +24,12 @@
 
 
 ## 没技术的细节
-1. 使用了flask框架+mysql数据库。
+1. 使用了flask框架+mysql,redis数据库。
 2. 使用request库，带着cookie去认证就好。
 3. 对flask_sqlalchemy做了简单包装，实现auto_commit()功能，同时本身是线程安全的。
+
+## 项目功能流程图
+![功能流程图](certifBlueprint.png)
 
 ## TODO
 - [x] json + redis使认证过程更快且数据结构更灵活。
