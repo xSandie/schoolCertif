@@ -2,6 +2,8 @@
 import json
 import os
 import re
+from urllib.parse import urlencode
+
 import requests
 from flask import Blueprint, jsonify, request, abort, current_app, logging
 from lxml import etree
@@ -197,37 +199,49 @@ def master_certif(req_arg, school_id):
     cookie_dict = json.loads(cookie_dict)
     my_cookie = cookie_dict.get('JSESSIONID')
     my_cookies = {
-        'ASP.NET_SessionId': my_cookie
+        'ASP.NET_SessionId': my_cookie,
+        'LoginType': 'LoginType=1'
     }
     header = {
         'Host': 'yjssys.snnu.edu.cn',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:63.0) Gecko/20100101 Firefox/63.0',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:66.0) Gecko/20100101 Firefox/66.0',
+        'Accept': '*/*',
         'Accept-Language': 'zh-CN,zh;q=0.8,zh-TW;q=0.7,zh-HK;q=0.5,en-US;q=0.3,en;q=0.2',
         'Accept-Encoding': 'gzip, deflate',
-        'Referer': 'http://yjssys.snnu.edu.cn/gstudent/ReLogin.aspx?ReturnUrl=/Gstudent/loging.aspx',
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Connection': 'keep-alive'
+        'Referer': 'http://yjssys.snnu.edu.cn/',
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-MicrosoftAjax': 'Delta=true',
+        'Content-Type': 'application/x-www-form-urlencoded; charset=utf-8',
+        'Connection': 'keep-alive',
+        'Pragma': 'no-cache',
     }
 
     info = {
-        'ctl00$contentParent$UserName': req_arg['account'],
-        'ctl00$contentParent$PassWord': req_arg['password'],
-        'ctl00$contentParent$ValidateCode': req_arg['verification_code'],
+        'UserName': str(req_arg['account']),
+        'PassWord': str(req_arg['password']),
+        'ValidateCode': str(req_arg['verification_code']),
+        'drpLoginType': 1,
+        '__ASYNCPOST': 'true',
     }
-    info = {**info, **cookie_dict}#合并两个dict
+    new_info = urlencode({**cookie_dict, **info})  #合并两个dict#合并两个dict
     renzheng = requests.post(master_certif_url,
-                             data=info, headers=header, cookies=my_cookies)
+                             data=new_info, headers=header, cookies=my_cookies)
     name_html = requests.get(master_sex_name_url, cookies=my_cookies)
     try:
-        sex_xpath = '//html/body/form/div[2]/table[@class="tbline"]/tr[2]/td[2]//text()'
-        name_xpath = '//html/body/form/div[2]/table[@class="tbline"]/tr[1]/td[4]//text()'
+        # sex_xpath = '//html/body/form/div[2]/table[@class="tbline"]/tr[2]/td[2]//text()'
+        # name_xpath = '//html/body/form/div[2]/table[@class="tbline"]/tr[1]/td[4]//text()'
+        #
+        # tree = etree.HTML(name_html.text)
+        # sex = tree.xpath(sex_xpath)
+        # name = tree.xpath(name_xpath)
+        # name_fin = str(name[0]).strip()
+        # sex_fin = str(sex[0]).strip()
+        re_name = re.compile('姓名\s*</td>\s*<td.*?>\s*(\S*)\s*</td>')
+        re_sex = re.compile('性别\s*</td>\s*<td.*?>\s*(\S*)\s*</td>')
+        # re_schoolNumb = re.compile("学号\s*</td>\s*<td.*?>\s*(\S*)\s*?</td>")
 
-        tree = etree.HTML(name_html.text)
-        sex = tree.xpath(sex_xpath)
-        name = tree.xpath(name_xpath)
-        name_fin = str(name[0]).strip()
-        sex_fin = str(sex[0]).strip()
+        name_fin = re.findall(re_name, name_html.text)[0].strip()
+        sex_fin = re.findall(re_sex, name_html.text)[0].strip()
 
         result_dict = {
             'user_id': req_arg['user_id'],
@@ -257,7 +271,17 @@ def master_certif(req_arg, school_id):
 
 def master_get(req_arg, school_id):
     s = requests.session()
-    html = s.get(master_main_url)
+    header = {
+        'Host': 'yjssys.snnu.edu.cn',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/73.0.3683.103 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3',
+        'Accept-Language': 'zh-CN,zh;q=0.9',
+        'Accept-Encoding': 'gzip, deflate',
+        'Connection': 'keep-alive',
+        'Cache-Control': 'max-age=0',
+        'Upgrade-Insecure-Requests': '1'
+    }
+    html = s.get(master_code_url, headers=header)
     my_cookie = html.cookies.get('ASP.NET_SessionId')
     cookie_dict = dict(html.cookies)
 
@@ -266,6 +290,8 @@ def master_get(req_arg, school_id):
 
     if get_img(img_name, cookie_dict,master_code_url):
         # 获取csrf_token
+        html = s.get(master_main_url, headers=header, cookies=cookie_dict)
+
         CSRF_XPATH_1 = '//*[@id="__EVENTVALIDATION"]/@value'
         CSRF_XPATH_2 = '//*[@id="__VIEWSTATEGENERATOR"]/@value'
         CSRF_XPATH_3 = '//*[@id="__VIEWSTATE"]/@value'
@@ -281,12 +307,14 @@ def master_get(req_arg, school_id):
 
         #cookie school_id+':'+str(req_arg['user_id'])
         cookie_dict = {
-            '__EVENTVALIDATION': csrf__EVENTVALIDATION,
-            '__VIEWSTATEGENERATOR': csrf__VIEWSTATEGENERATOR,
-            '__VIEWSTATE': csrf__VIEWSTATE,
-            '__EVENTTARGET': 'ctl00$contentParent$btLogin',
+            'ScriptManager1': 'UpdatePanel2|btLogin',
+            '__EVENTTARGET': 'btLogin',
             '__EVENTARGUMENT': '',
-            'JSESSIONID': my_cookie
+            '__LASTFOCUS': '',
+            '__VIEWSTATE': csrf__VIEWSTATE,
+            '__VIEWSTATEGENERATOR': csrf__VIEWSTATEGENERATOR,
+            '__EVENTVALIDATION': csrf__EVENTVALIDATION,
+            'JSESSIONID': my_cookie,
         }
         cookie_redis.setex(school_id+':'+str(req_arg['user_id']),current_app.config['COOKIE_LIVE_TIME'],
                          json.dumps(cookie_dict))
