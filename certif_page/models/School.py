@@ -8,3 +8,4 @@ class School(Base):
 
     remoteUrl = db.relationship('RemoteUrl', back_populates='school')
     successPeople = db.relationship('Success', back_populates='school')
+    remote = db.Column(db.Boolean, default=False)#默认不使用内网

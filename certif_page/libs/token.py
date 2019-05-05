@@ -1,6 +1,5 @@
 from certif_page.libs.redis_conn import token_redis
 from certif_page.models.Token import Token
-from certif_page.models.base import db
 
 #todo 检查是否还能请求
 def check_token(token:str)->bool:
