@@ -10,7 +10,7 @@ token_redis = redis.StrictRedis(host='127.0.0.1', port=6379, db=4)#token与剩�
 # }
 
 # alive_redis={
-#     "remote:学校缩写":{
+#     "remote:学校id":{
 #         'alive':True,
 #         'url':'http://127.0.0.1:6001'
 #     }

@@ -8,7 +8,7 @@ def check_token(token:str)->bool:
     if not r_token:
         #内存中不存在，今天第一次请求
         token_obj = Token.query.filter_by(value=token).first()
-        token_redis.set(prefix+token_obj.value,token_obj.limitPerDay)
+        token_redis.setex(prefix+token_obj.value,86400,token_obj.limitPerDay)#默认二十四小时
         return True
     elif r_token and int(r_token)>0:
         token_redis.decr(prefix+token, 1)
