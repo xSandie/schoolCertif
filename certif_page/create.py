@@ -13,33 +13,35 @@ from certif_page.models.Token import Token
 from certif_page.models.base import db
 
 
-def register_blueprints(app):#注册蓝图
+def register_blueprints(app):  # 注册蓝图
     from certif_page.api.snnu.certif import snnu
     app.register_blueprint(snnu, url_prefix='/snnu')
 
 
 def create_app(config_name=None):
     if config_name is None:
-        config_name = os.getenv('FLASK_CONFIG', 'development')
-    app=Flask(__name__)#不要漏掉本函数参数
+        config_name = os.getenv('FLASK_CONFIG', 'production')
+    app = Flask(__name__)  # 不要漏掉本函数参数
     app.config.from_object(config[config_name])
-    #上面进行基本配置
+    # 上面进行基本配置
     register_blueprints(app)
     db.init_app(app)
     cache.init_app(app)
-    migrate=Migrate(app,db)
+    migrate = Migrate(app, db)
     with app.app_context():
         db.create_all()
 
     register_shell_context(app)
     register_commands(app)
 
-    return app #一定要记得返回创建的核心对象app
+    return app  # 一定要记得返回创建的核心对象app
+
 
 def register_shell_context(app):
     @app.shell_context_processor
     def make_shell_context():
-        return dict(app=app,db=db)
+        return dict(app=app, db=db)
+
 
 def register_commands(app):
     @app.cli.command('initdb')
@@ -50,7 +52,7 @@ def register_commands(app):
             db.create_all()
         click.echo("Done")
 
-    @app.cli.command('gentoken')#todo 带参数limit
+    @app.cli.command('gentoken')  # todo 带参数limit
     def gen_token():
         click.echo("Initializing token")
         this_time = str(int(datetime.datetime.now().timestamp()))

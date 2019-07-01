@@ -4,110 +4,202 @@ import re
 from urllib.parse import urlencode
 
 import requests
-from flask import Blueprint, jsonify, request, abort, current_app
+from flask import Blueprint, jsonify, request, current_app
 from lxml import etree
 
 from certif_page.api.IDENTITY import BENKE, MASTER
 from certif_page.api.snnu.URL import benke_get_url, benke_get_pic_url, benke_certif_url, benke_name_schoolNum_url, \
     benke_sex_url, master_main_url, master_code_url, master_certif_url, master_sex_name_url
-from certif_page.libs.CertifErrors.ParamError import ParamError
+from certif_page.api.snnu.schema import get_schema, certif_schema
 from certif_page.libs.abbr2id import abbr2id
-from certif_page.libs.local_remote import check_alive, try_local, check_remoteOrLocal, try_remote
-from certif_page.libs.debug import debug
-from certif_page.libs.image import rename_code, get_img, swap_remote_image, get_remote_portrait
-from certif_page.libs.redis_conn import cookie_redis, alive_redis
-from certif_page.libs.token import check_token
-from certif_page.models.RemoteUrl import RemoteUrl
+from certif_page.libs.image import rename_code, get_img
+from certif_page.libs.redis_conn import cookie_redis
+from certif_page.libs.args_and_docs.use_small_args import use_small_args
+from certif_page.models.RemoteProxy import RemoteProxy
 from certif_page.models.School import School
 from certif_page.models.Success import Success
 from certif_page.models.base import db
-from app import OS_PATH
-
 
 snnu = Blueprint('snnu', __name__)
 school_abbr = 'snnu'
-DEBUG = False  # 是否开启调试
-DEBUG_URL = 'http://127.0.0.1:10000'  # 调试时的转发地址
-
-#内网本科认证
-def remote_benke_certif(req_args:dict, url:str, school_id:str)->dict:
-    r = requests.session()
-    html = r.post(url + '/' + school_abbr + '/certif', json=req_args, data=req_args)
-    try:
-        body = html.text
-        res = json.loads(body)
-    except Exception as e:
-        raise ParamError()  # todo 暂时这么用，因为没做参数校验
-    if res.get('status') != 1:
-        return res
-    else:  # todo 获取头像，存储基本数据
-        get_remote_portrait(img_url=url+'/'+school_abbr+'/protrait/'+str(req_args['user_id']) + '.jpg',
-                            user_id=req_args['user_id'], school_abbr=school_abbr)
-        with db.auto_commit():
-            success = Success()
-            success.schoolId = int(school_id)
-            success.portraitUri = "/static/snnu/portrait/" + \
-                                  str(req_args['user_id']) + '.jpg'
-            success.info = 'name:' + res.get('name') + ',' + 'school_numb:' + str(res.get('school_numb')) + ',' + \
-                           'sex:' + res.get('sex') + ',' + 'identity:1'
-            db.session.add(success)
-    return res
 
 
-#内网研究生认证
-def remote_master_certif(req_args:dict, url:str,school_id:str)->dict:
-    r = requests.session()
-    html = r.post(url + '/' + school_abbr + '/certif', json=req_args, data=req_args)
-    try:
-        body = html.text
-        res = json.loads(body)
-    except Exception as e:
-        raise ParamError()  # todo 暂时这么用，因为没做参数校验
-    if res.get('status') != 1:
-        return res
-    else:  # todo 获取头像，存储基本数据
-        get_remote_portrait(img_url=url + '/' + school_abbr + '/protrait/' + str(req_args['user_id']) + '.jpg',
-                            user_id=req_args['user_id'], school_abbr=school_abbr)
-        with db.auto_commit():
-            success = Success()
-            success.schoolId = int(school_id)
-            success.portraitUri = "/static/snnu/portrait/" + \
-                                  str(req_args['user_id']) + '.jpg'
-            success.info = 'name:' + res.get('name') + ',' + 'school_numb:' + str(res.get('school_numb')) + ',' + \
-                           'sex:' + res.get('sex') + ',' + 'identity:2'
-            db.session.add(success)
-    return res
+@snnu.route('/certif', methods=['POST'])
+@use_small_args(certif_schema)
+def certif(user_id, ):
+    school_id = str(abbr2id('snnu'))
+    req_args = request.form
+    req_args = req_args.to_dict()
+    req_args['user_id'] = str(req_args['user_id'])  # 防止传int
+    certif_res = {}
+    # if check_token(req_args.get('token')):
+    #     if check_remoteOrLocal(school_id):
+    #         # todo 尝试内网请求
+    #         if check_alive(school_id, alive_redis):
+    #             # todo 发起内网请求，失败后报错，通知管理员
+    #             with try_remote(req_args=req_args, school_id=school_id, remote_func=remote_certif,
+    #                             get_func=remote_get, res_dict=certif_res):
+    #                 pass
+    #         else:  # todo 内网也挂了，通知管理员，可以返回占位img
+    #             certif_res['status'] = 0
+    #             with try_local(req_args=req_args, school_id=school_id, get_func=place_holder,
+    #                            local_func=local_get, res_dict=certif_res):
+    #                 pass  # 外网get请求
+    #             with db.auto_commit():  # 数据库切换成外网
+    #                 record = School.query.get(int(school_id))
+    #                 record.remote = False
+    #     else:
+    #         # todo 外网请求
+    #         with try_local(req_args=req_args, school_id=school_id, get_func=local_get,
+    #                        local_func=local_certif, res_dict=certif_res):
+    #             pass
+    # else:
+    #     abort(400)
+    return jsonify(certif_res)
+    # if DEBUG:
+    #     certif_res = {**debug(req_args, DEBUG_URL, school_abbr)}
+    # else:
+    #     if check_token(req_args.get('token')):
+    #         if check_alive(school_id, alive_redis):
+    #             # todo 发起内网请求，失败后报错，通知管理员
+    #             pass
+    #         else:
+    #             if int(req_args.get('identity', 1)) == BENKE:
+    #                 certif_res = benke_certif(req_args, school_id)
+    #             elif int(req_args.get('identity')) == MASTER:
+    #                 certif_res = master_certif(req_args, school_id)
+    #             else:
+    #                 abort(400)
+    # return jsonify(certif_res)
 
-#内网本科生验证码
-def remote_benke_get(req_args:dict, url:str)->dict:
-    r = requests.session()
-    html = r.post(url + '/' + school_abbr + '/get', json=req_args, data=req_args)
-    try:
-        body = html.text
-        res = json.loads(body)
-    except Exception as e:
-        raise ParamError()  # todo 暂时这么用，因为没做参数校验
-    res['img_url'] = swap_remote_image(img_url=res['img_url'], user_id=req_args['user_id'],
-                                       school_abbr=school_abbr)
-    return res
+
+@snnu.route('/get', methods=['POST'])
+@use_small_args(get_schema)
+def get(user_id):
+    _ = School()
+    _ = RemoteProxy()
+    school_id = str(abbr2id(school_abbr))
+    req_args = request.form
+    req_args = req_args.to_dict()
+    req_args['user_id'] = str(req_args['user_id'])  # 防止传int
+    res_dict = {}
+    # if check_token(req_args.get('token')):
+    #     if check_remoteOrLocal(school_id):
+    #         if check_alive(school_id, alive_redis):
+    #             # 发起内网请求，失败后报错，通知管理员
+    #             with try_remote(req_args=req_args, school_id=school_id, remote_func=remote_get,
+    #                             get_func=place_holder, res_dict=res_dict):
+    #                 pass
+    #         else:
+    #             # todo 外网请求
+    #             with try_local(req_args=req_args, school_id=school_id, get_func=place_holder,
+    #                            local_func=local_get, res_dict=res_dict):
+    #                 pass
+    #             # todo 内网未连接，通知管理员，可以返回占位img
+    #             # 设置成外网认证
+    #             with db.auto_commit():  # 数据库切换成外网
+    #                 record = School.query.get(int(school_id))
+    #                 record.remote = False
+    #
+    #     else:
+    #         # todo 外网请求
+    #         with try_local(req_args=req_args, school_id=school_id, get_func=place_holder,
+    #                        local_func=local_get, res_dict=res_dict):
+    #             pass
+    # else:
+    #     abort(400)
+    return jsonify(res_dict)
 
 
-#内网研究生验证码
-def remote_master_get(req_args:dict, url:str)->dict:
-    r = requests.session()
-    html = r.post(url + '/' + school_abbr + '/get', json=req_args, data=req_args)
-    try:
-        body = html.text
-        res = json.loads(body)
-    except Exception as e:
-        raise ParamError()  # todo 暂时这么用，因为没做参数校验
-    res['img_url'] = swap_remote_image(img_url=res['img_url'], user_id=req_args['user_id'],
-                                       school_abbr=school_abbr)
-    return res
+@snnu.route('/change', methods=['POST'])
+@use_small_args()
+def change(args):
+    pass
+
+
+
+
+
+# # 内网本科认证
+# def remote_benke_certif(req_args: dict, url: str, school_id: str) -> dict:
+#     r = requests.session()
+#     html = r.post(url + '/' + school_abbr + '/certif', json=req_args, data=req_args)
+#     try:
+#         body = html.text
+#         res = json.loads(body)
+#     except Exception as e:
+#         raise ParamError()  # todo 暂时这么用，因为没做参数校验
+#     if res.get('status') != 1:
+#         return res
+#     else:  # todo 获取头像，存储基本数据
+#         get_remote_portrait(img_url=url + '/' + school_abbr + '/protrait/' + str(req_args['user_id']) + '.jpg',
+#                             user_id=req_args['user_id'], school_abbr=school_abbr)
+#         with db.auto_commit():
+#             success = Success()
+#             success.schoolId = int(school_id)
+#             success.portraitUri = "/static/snnu/portrait/" + \
+#                                   str(req_args['user_id']) + '.jpg'
+#             success.info = 'name:' + res.get('name') + ',' + 'school_numb:' + str(res.get('school_numb')) + ',' + \
+#                            'sex:' + res.get('sex') + ',' + 'identity:1'
+#             db.session.add(success)
+#     return res
+#
+#
+# # 内网研究生认证
+# def remote_master_certif(req_args: dict, url: str, school_id: str) -> dict:
+#     r = requests.session()
+#     html = r.post(url + '/' + school_abbr + '/certif', json=req_args, data=req_args)
+#     try:
+#         body = html.text
+#         res = json.loads(body)
+#     except Exception as e:
+#         raise ParamError()  # todo 暂时这么用，因为没做参数校验
+#     if res.get('status') != 1:
+#         return res
+#     else:  # todo 获取头像，存储基本数据
+#         get_remote_portrait(img_url=url + '/' + school_abbr + '/protrait/' + str(req_args['user_id']) + '.jpg',
+#                             user_id=req_args['user_id'], school_abbr=school_abbr)
+#         with db.auto_commit():
+#             success = Success()
+#             success.schoolId = int(school_id)
+#             success.portraitUri = "/static/snnu/portrait/" + \
+#                                   str(req_args['user_id']) + '.jpg'
+#             success.info = 'name:' + res.get('name') + ',' + 'school_numb:' + str(res.get('school_numb')) + ',' + \
+#                            'sex:' + res.get('sex') + ',' + 'identity:2'
+#             db.session.add(success)
+#     return res
+
+
+# # 内网本科生验证码
+# def remote_benke_get(req_args: dict, url: str) -> dict:
+#     r = requests.session()
+#     html = r.post(url + '/' + school_abbr + '/get', json=req_args, data=req_args)
+#     try:
+#         body = html.text
+#         res = json.loads(body)
+#     except Exception as e:
+#         raise ParamError()  # 暂时这么用，因为没做参数校验
+#     res['img_url'] = swap_remote_image(img_url=res['img_url'], user_id=req_args['user_id'],
+#                                        school_abbr=school_abbr)
+#     return res
+#
+#
+# # 内网研究生验证码
+# def remote_master_get(req_args: dict, url: str) -> dict:
+#     r = requests.session()
+#     html = r.post(url + '/' + school_abbr + '/get', json=req_args, data=req_args)
+#     try:
+#         body = html.text
+#         res = json.loads(body)
+#     except Exception as e:
+#         raise ParamError()  # 暂时这么用，因为没做参数校验
+#     res['img_url'] = swap_remote_image(img_url=res['img_url'], user_id=req_args['user_id'],
+#                                        school_abbr=school_abbr)
+#     return res
 
 
 # 外网本科生认证
-def benke_certif(req_arg: dict, school_id: str) -> dict:
+def benke_certif(req_arg: dict, school_id: str, remote_or_local: bool) -> dict:
     result_dict = {}
     # db_data = SnnuCookie.query.filter_by(userId=str(req_arg['user_id'])).order_by(desc("id")).first()  # 降序排列取最后一个
     # my_cookie = db_data.JSESSIONID
@@ -148,11 +240,11 @@ def benke_certif(req_arg: dict, school_id: str) -> dict:
     major = re.findall(re_specialty, sex_html.text)[0]
     clss = re.findall(re_class, sex_html.text)[0]
     grade = re.findall(re_grade, sex_html.text)[0]
-
+    from app import OS_PATH
     # todo 保存用户照片
     portrait_url = benke_get_url + 'xjInfoAction.do?oper=img'
     save_portrait_uri = OS_PATH + "/static/snnu/portrait/" + \
-        str(req_arg['user_id']) + '.jpg'
+                        str(req_arg['user_id']) + '.jpg'
     get_img(
         img_name=save_portrait_uri,
         my_cookies=my_cookies,
@@ -168,11 +260,12 @@ def benke_certif(req_arg: dict, school_id: str) -> dict:
             with db.auto_commit():
                 success = Success()
                 success.schoolId = int(school_id)
+                success.userId = int(req_arg['user_id'])
                 success.portraitUri = "/static/snnu/portrait/" + \
-                    str(req_arg['user_id']) + '.jpg'
-                success.info = 'name:' + name_and_schoolNum[1] + ',' + 'school_numb:' + name_and_schoolNum[0] + ',' +\
-                    'sex:' + sex + ',' + 'identity:1,' + 'major:' + major + ',' + 'class:' + clss + ',' +\
-                    'grade:' + grade + ',{{' + sex_html.text + '}}'  # 存储网页源码，方便以后分析
+                                      str(req_arg['user_id']) + '.jpg'
+                success.info = 'name:' + name_and_schoolNum[1] + ',' + 'school_numb:' + name_and_schoolNum[0] + ',' + \
+                               'sex:' + sex + ',' + 'identity:1,' + 'major:' + major + ',' + 'class:' + clss + ',' + \
+                               'grade:' + grade + ',{{' + sex_html.text + '}}'  # 存储网页源码，方便以后分析
                 db.session.add(success)
             result_dict = {
                 'user_id': req_arg['user_id'],
@@ -202,10 +295,20 @@ def benke_certif(req_arg: dict, school_id: str) -> dict:
         # result_dict['status'] = 0
         # 认证失败逻辑需要再写一下,再次去获取验证码
     return result_dict
+
+
 # 外网本科生验证码
 
 
-def benke_get(req_arg: dict, school_id: str) -> dict:
+def benke_get(req_arg: dict, school_id: str, remote_or_local: bool) -> dict:
+    """
+    本科生获取验证码 和 cookie
+    :param req_arg: 参数字典
+    :param school_id: 学校id
+    :param remote_or_local: 判断是否使用代理进行remote内网认证，True使用代理，False不使用代理
+    :return:
+    """
+    from app import OS_PATH
     s = requests.session()
     html = s.get(benke_get_url)
     # my_cookie = html.cookies['JSESSIONID']
@@ -229,10 +332,11 @@ def benke_get(req_arg: dict, school_id: str) -> dict:
         raise OverflowError
     return result_dict
 
+
 # 外网研究生认证
 
 
-def master_certif(req_arg: dict, school_id: str) -> dict:
+def master_certif(req_arg: dict, school_id: str, remote_or_local: bool) -> dict:
     result_dict = {}
     cookie_dict = cookie_redis.get(school_id + ':' + str(req_arg['user_id']))
 
@@ -300,9 +404,9 @@ def master_certif(req_arg: dict, school_id: str) -> dict:
             success = Success()
             success.schoolId = int(school_id)
             success.userId = int(req_arg['user_id'])
-            success.info = 'user_id:' + req_arg['user_id'] + "," +\
-                'name:' + name_fin + ',' + 'school_numb:' + \
-                req_arg['account'] + ',' + 'sex:' + sex_fin + ',' + 'identity:2'
+            success.info = 'user_id:' + req_arg['user_id'] + "," + \
+                           'name:' + name_fin + ',' + 'school_numb:' + \
+                           req_arg['account'] + ',' + 'sex:' + sex_fin + ',' + 'identity:2'
         # 重命名用户认证用的二维码
         rename_code(
             pic_name=req_arg['verification_code'],
@@ -316,10 +420,11 @@ def master_certif(req_arg: dict, school_id: str) -> dict:
         # result_dict['status'] = 0
     return result_dict
 
+
 # 外网研究生验证码
 
 
-def master_get(req_arg: dict, school_id: str) -> dict:
+def master_get(req_arg: dict, school_id: str, remote_or_local: bool) -> dict:
     s = requests.session()
     header = {
         'Host': 'yjssys.snnu.edu.cn',
@@ -333,7 +438,7 @@ def master_get(req_arg: dict, school_id: str) -> dict:
     html = s.get(master_code_url, headers=header)
     my_cookie = html.cookies.get('ASP.NET_SessionId')
     cookie_dict = dict(html.cookies)
-
+    from app import OS_PATH
     img_local_url = "/static/snnu/" + str(req_arg['user_id']) + '.jpg'
     img_name = OS_PATH + img_local_url
 
@@ -379,96 +484,6 @@ def master_get(req_arg: dict, school_id: str) -> dict:
     return result_dict
 
 
-@snnu.route('/certif', methods=['POST'])
-def certif():
-    school_id = str(abbr2id('snnu'))
-    req_args = request.form
-    req_args = req_args.to_dict()
-    req_args['user_id'] = str(req_args['user_id'])  # 防止传int
-    certif_res = {}
-    if DEBUG:
-        certif_res = {**debug(req_args, DEBUG_URL, school_abbr)}
-    else:
-        if check_token(req_args.get('token')):
-            if check_remoteOrLocal(school_id):
-                # todo 尝试内网请求
-                if check_alive(school_id, alive_redis):
-                    # todo 发起内网请求，失败后报错，通知管理员
-                    with try_remote(req_args=req_args, school_id=school_id, remote_func=remote_certif,
-                                    get_func=remote_get, res_dict=certif_res):
-                        pass
-                else:  # todo 内网也挂了，通知管理员，可以返回占位img
-                    certif_res['status'] = 0
-                    with try_local(req_args=req_args, school_id=school_id, get_func=place_holder,
-                                   local_func=local_get, res_dict=certif_res):
-                        pass #外网get请求
-                    with db.auto_commit():  # 数据库切换成外网
-                        record = School.query.get(int(school_id))
-                        record.remote = False
-            else:
-                # todo 外网请求
-                with try_local(req_args=req_args, school_id=school_id, get_func=local_get,
-                               local_func=local_certif, res_dict=certif_res):
-                    pass
-        else:
-            abort(400)
-    return jsonify(certif_res)
-    # if DEBUG:
-    #     certif_res = {**debug(req_args, DEBUG_URL, school_abbr)}
-    # else:
-    #     if check_token(req_args.get('token')):
-    #         if check_alive(school_id, alive_redis):
-    #             # todo 发起内网请求，失败后报错，通知管理员
-    #             pass
-    #         else:
-    #             if int(req_args.get('identity', 1)) == BENKE:
-    #                 certif_res = benke_certif(req_args, school_id)
-    #             elif int(req_args.get('identity')) == MASTER:
-    #                 certif_res = master_certif(req_args, school_id)
-    #             else:
-    #                 abort(400)
-    # return jsonify(certif_res)
-
-
-@snnu.route('/get', methods=['POST'])
-def get():
-    _ = School()
-    _ = RemoteUrl()
-    school_id = str(abbr2id(school_abbr))
-    req_args = request.form
-    req_args = req_args.to_dict()
-    req_args['user_id'] = str(req_args['user_id'])  # 防止传int
-    res_dict = {}
-    if DEBUG:
-        res_dict = {**debug(req_args, DEBUG_URL, school_abbr)}
-    else:
-        if check_token(req_args.get('token')):
-            if check_remoteOrLocal(school_id):
-                if check_alive(school_id, alive_redis):
-                    # 发起内网请求，失败后报错，通知管理员
-                    with try_remote(req_args=req_args, school_id=school_id, remote_func=remote_get,
-                                    get_func=place_holder, res_dict=res_dict):
-                        pass
-                else:
-                    # todo 外网请求
-                    with try_local(req_args=req_args, school_id=school_id, get_func=place_holder,
-                                   local_func=local_get, res_dict=res_dict):
-                        pass
-                    # todo 内网未连接，通知管理员，可以返回占位img
-                    # 设置成外网认证
-                    with db.auto_commit():  # 数据库切换成外网
-                        record = School.query.get(int(school_id))
-                        record.remote = False
-
-            else:
-                # todo 外网请求
-                with try_local(req_args=req_args, school_id=school_id, get_func=place_holder,
-                               local_func=local_get, res_dict=res_dict):
-                    pass
-        else:
-            abort(400)
-    return jsonify(res_dict)
-
 # todo 发起外网请求
 
 
@@ -492,41 +507,39 @@ def local_certif(req_args: dict, school_id: str):
         return {'status': 4}
 
 
-
-def remote_get(req_args: dict, school_id: str):
-    identity = int(req_args.get('identity', 1))  # 默认本科
-    record = json.loads(alive_redis.get(
-        current_app.config['REMOTE_ALIVE_PREFIX'] + school_id))
-    url = record.get('url')  # 请求网址前缀
-    if identity == BENKE:
-        return remote_benke_get(req_args, url)
-    elif identity == MASTER:
-        return remote_master_get(req_args, url)
-    else:
-        return {'status': 4}
-
+# def remote_get(req_args: dict, school_id: str):
+#     identity = int(req_args.get('identity', 1))  # 默认本科
+#     record = json.loads(alive_redis.get(
+#         current_app.config['REMOTE_ALIVE_PREFIX'] + school_id))
+#     url = record.get('url')  # 请求网址前缀
+#     if identity == BENKE:
+#         return remote_benke_get(req_args, url)
+#     elif identity == MASTER:
+#         return remote_master_get(req_args, url)
+#     else:
+#         return {'status': 4}
 
 
-def remote_certif(req_args: dict, school_id: str):
-    identity = int(req_args.get('identity', 1))  # 默认本科
-    record = json.loads(alive_redis.get(
-        current_app.config['REMOTE_ALIVE_PREFIX'] + school_id))
-    url = record.get('url')  # 请求网址前缀
-    if identity == BENKE:
-        return remote_benke_certif(req_args, url, school_id)
-    elif identity == MASTER:
-        return remote_master_certif(req_args, url, school_id)
-    else:
-        return {'status': 4}
+# def remote_certif(req_args: dict, school_id: str):
+#     identity = int(req_args.get('identity', 1))  # 默认本科
+#     record = json.loads(alive_redis.get(
+#         current_app.config['REMOTE_ALIVE_PREFIX'] + school_id))
+#     url = record.get('url')  # 请求网址前缀
+#     if identity == BENKE:
+#         return remote_benke_certif(req_args, url, school_id)
+#     elif identity == MASTER:
+#         return remote_master_certif(req_args, url, school_id)
+#     else:
+#         return {'status': 4}
+#
+#     pass
 
-    pass
 
 # get时的占位func,可以返回占位验证码
 
 
 def place_holder(req_args, school_id):
     return {'error': 1}
-
 
 # def rescue_input_error(*, certif_res, req_args, school_id: str):
 #     #  预计是账号密码错误，进行补救

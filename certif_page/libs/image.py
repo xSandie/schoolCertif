@@ -2,13 +2,14 @@ import os
 
 import requests
 from flask import current_app
-from app import OS_PATH
+
 
 # 将内网的图片转到外网上来，并返回外网地址
 def swap_remote_image(*, img_url, user_id, school_abbr) -> str:
     s = requests.session()
     img = requests.get(img_url)
     img_name ="/static/" + school_abbr + "/" + str(user_id) + '.jpg'
+    from app import OS_PATH
     img_path = OS_PATH + img_name
     with open(img_path, 'wb') as f:
         f.write(img.content)
@@ -17,6 +18,7 @@ def swap_remote_image(*, img_url, user_id, school_abbr) -> str:
 def get_remote_portrait(*, img_url, user_id, school_abbr):
     s = requests.session()
     img = requests.get(img_url)
+    from app import OS_PATH
     try:
         img_name = OS_PATH + "/static/" + school_abbr + "/portrait/"+ str(user_id) + '.jpg'
         with open(img_name, 'wb') as f:
