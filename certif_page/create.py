@@ -8,6 +8,7 @@ from flask import Flask
 from flask_migrate import Migrate
 
 from certif_page.config.setting import config
+from certif_page.libs.args_and_docs.ApiDoc import FlaskApiDoc
 from certif_page.libs.cache import cache
 from certif_page.models.Token import Token
 from certif_page.models.base import db
@@ -34,6 +35,8 @@ def create_app(config_name=None):
     register_shell_context(app)
     register_commands(app)
 
+    app.config['API_DOC_MEMBER'] = ['snnu',]
+    FlaskApiDoc(app)
     return app  # 一定要记得返回创建的核心对象app
 
 

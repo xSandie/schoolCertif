@@ -10,7 +10,7 @@ from lxml import etree
 from certif_page.api.IDENTITY import BENKE, MASTER
 from certif_page.api.snnu.URL import benke_get_url, benke_get_pic_url, benke_certif_url, benke_name_schoolNum_url, \
     benke_sex_url, master_main_url, master_code_url, master_certif_url, master_sex_name_url
-from certif_page.api.snnu.schema import get_schema, certif_schema
+from certif_page.api.snnu.schema import CertifSchema, GetSchema
 from certif_page.libs.abbr2id import abbr2id
 from certif_page.libs.image import rename_code, get_img
 from certif_page.libs.redis_conn import cookie_redis
@@ -25,8 +25,11 @@ school_abbr = 'snnu'
 
 
 @snnu.route('/certif', methods=['POST'])
-@use_small_args(certif_schema)
-def certif(user_id, ):
+@use_small_args(CertifSchema)
+def certif_post(user_id, account, password, verification_code):
+    """认证请求
+    :::CertifSchema:::
+    """
     school_id = str(abbr2id('snnu'))
     req_args = request.form
     req_args = req_args.to_dict()
@@ -74,8 +77,11 @@ def certif(user_id, ):
 
 
 @snnu.route('/get', methods=['POST'])
-@use_small_args(get_schema)
-def get(user_id):
+@use_small_args(GetSchema)
+def certif_get(user_id):
+    """获取验证码和cookie
+    :::GetSchema:::
+    """
     _ = School()
     _ = RemoteProxy()
     school_id = str(abbr2id(school_abbr))
@@ -111,13 +117,10 @@ def get(user_id):
     return jsonify(res_dict)
 
 
-@snnu.route('/change', methods=['POST'])
-@use_small_args()
-def change(args):
-    pass
-
-
-
+# @snnu.route('/change', methods=['POST'])
+# @use_small_args()
+# def change(args):
+#     pass
 
 
 # # 内网本科认证
