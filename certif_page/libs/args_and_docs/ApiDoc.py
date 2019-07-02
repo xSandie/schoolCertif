@@ -1,9 +1,17 @@
 from flask_docs import ApiDoc
-
+import importlib
 NO_DOC = '这个Api没有文档'
 
 
 class FlaskApiDoc(ApiDoc):
+    def __init__(self, app, schema_package=None):
+        """
+
+        :param app:app对象
+        :param schema_package:schema集中分布的包名
+        """
+        self.schema_package = schema_package
+        super(FlaskApiDoc, self).__init__(app)
 
     def get_api_name(self, func):
         """e.g. Convert 'do_work' to 'Do Work'"""
@@ -20,12 +28,19 @@ class FlaskApiDoc(ApiDoc):
             func_modules.append('schema')
             # func_modules.append(obj_name)
             try:
-                pkg = __import__('.'.join(func_modules))
+                if self.schema_package is None:
+                    pkg = importlib.import_module('.'.join(func_modules))
+                else:
+                    pkg = importlib.import_module(self.schema_package)
+                    # 最后一层是类名，所以不导入
+                    for wrap_pkg in obj_name.split('.')[:-1]:
+                        pkg = getattr(pkg, wrap_pkg)
+                # pkg = __import__('.'.join(func_modules))
                 del func_modules[0]
-                func_modules.append(obj_name)
-                schema_cls = pkg
-                for name in func_modules:
-                    schema_cls = getattr(schema_cls, name)
+                # func_modules.append(obj_name)
+                # schema_cls = pkg
+                # for name in func_modules:
+                schema_cls = getattr(pkg, obj_name)
                 schema_obj = schema_cls()
                 # json_schema = JSONSchema(nested=True)
                 # result = json_schema.dump(schema_obj).data

@@ -1,9 +1,9 @@
 # import smtplib
 # from email.mime.text import MIMEText
 #
-# password = 'dkpalbuarbejcbda'
+# password = ''
 # email_host = "smtp.qq.com"
-# send_user = "345592674@qq.com"
+# send_user = ""
 # user_list = ['345592674@qq.com']
 #
 #

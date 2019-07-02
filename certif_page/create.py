@@ -36,7 +36,7 @@ def create_app(config_name=None):
     register_commands(app)
 
     app.config['API_DOC_MEMBER'] = ['snnu',]
-    FlaskApiDoc(app)
+    FlaskApiDoc(app=app)
     return app  # 一定要记得返回创建的核心对象app
 
 
